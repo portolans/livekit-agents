@@ -21,7 +21,7 @@ We are partnering with OpenAI on a new `MultimodalAgent` API in the Agents frame
 
 ## What is Agents?
 
-The Agents framework allows you to build AI-driven server programs that can see, hear, and speak in realtime. Your agent connects with end user devices through a LiveKit session. During that session, your agent can process text, audio, images, or video streaming from a user's device, and have an AI model generate any combination of those same modalities as output, and stream them back to the user. 
+The Agents framework allows you to build AI-driven server programs that can see, hear, and speak in realtime. Your agent connects with end user devices through a LiveKit session. During that session, your agent can process text, audio, images, or video streaming from a user's device, and have an AI model generate any combination of those same modalities as output, and stream them back to the user.
 
 ## Features
 
@@ -51,19 +51,18 @@ pip install livekit-plugins-openai
 
 The following plugins are available today:
 
-| Plugin                                                                             | Features                                    |
-| ---------------------------------------------------------------------------------- | ------------------------------------------- |
-| [livekit-plugins-anthropic](https://pypi.org/project/livekit-plugins-anthropic/)   | LLM                                         |
-| [livekit-plugins-azure](https://pypi.org/project/livekit-plugins-azure/)           | STT, TTS                                    |
-| [livekit-plugins-deepgram](https://pypi.org/project/livekit-plugins-deepgram/)     | STT                                         |
-| [livekit-plugins-cartesia](https://pypi.org/project/livekit-plugins-cartesia/)     | TTS                                         |
-| [livekit-plugins-elevenlabs](https://pypi.org/project/livekit-plugins-elevenlabs/) | TTS                                         |
-| [livekit-plugins-playht](https://pypi.org/project/livekit-plugins-playht/)         | TTS                                         |
-| [livekit-plugins-google](https://pypi.org/project/livekit-plugins-google/)         | STT, TTS                                    |
-| [livekit-plugins-nltk](https://pypi.org/project/livekit-plugins-nltk/)             | Utilities for working with text             |
-| [livekit-plugins-rag](https://pypi.org/project/livekit-plugins-rag/)               | Utilities for performing RAG                |
-| [livekit-plugins-openai](https://pypi.org/project/livekit-plugins-openai/)         | LLM, STT, TTS, Assistants API, Realtime API |
-| [livekit-plugins-silero](https://pypi.org/project/livekit-plugins-silero/)         | VAD                                         |
+| Plugin                                                                             | Features                        |
+| ---------------------------------------------------------------------------------- | ------------------------------- |
+| [livekit-plugins-anthropic](https://pypi.org/project/livekit-plugins-anthropic/)   | LLM                             |
+| [livekit-plugins-assemblyai](https://pypi.org/project/livekit-plugins-assemblyai/)           | STT                        |
+| [livekit-plugins-azure](https://pypi.org/project/livekit-plugins-azure/)           | STT, TTS                        |
+| [livekit-plugins-cartesia](https://pypi.org/project/livekit-plugins-cartesia/)     | TTS                             |
+| [livekit-plugins-deepgram](https://pypi.org/project/livekit-plugins-deepgram/)     | STT                             |
+| [livekit-plugins-elevenlabs](https://pypi.org/project/livekit-plugins-elevenlabs/) | TTS                             |
+| [livekit-plugins-google](https://pypi.org/project/livekit-plugins-google/)         | STT, TTS                        |
+| [livekit-plugins-nltk](https://pypi.org/project/livekit-plugins-nltk/)             | Utilities for working with text |
+| [livekit-plugins-openai](https://pypi.org/project/livekit-plugins-openai/)         | LLM, STT, TTS                   |
+| [livekit-plugins-silero](https://pypi.org/project/livekit-plugins-silero/)         | VAD                             |
 
 
 ## Documentation and guides
