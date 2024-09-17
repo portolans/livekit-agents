@@ -54,6 +54,7 @@ class ChatMessage:
     tool_calls: list[function_context.FunctionCallInfo] | None = None
     tool_call_id: str | None = None
     tool_exception: Exception | None = None
+    inference_id: str | None = None
     _metadata: dict[str, Any] = field(default_factory=dict, repr=False, init=False)
 
     @staticmethod
@@ -124,6 +125,7 @@ class ChatMessage:
             content=content,
             tool_calls=tool_calls,
             tool_call_id=self.tool_call_id,
+            inference_id=self.inference_id,
         )
         copied_msg._metadata = self._metadata
         return copied_msg
@@ -135,9 +137,18 @@ class ChatContext:
     _metadata: dict[str, Any] = field(default_factory=dict, repr=False, init=False)
 
     def append(
-        self, *, text: str = "", images: list[ChatImage] = [], role: ChatRole = "system"
+        self,
+        *,
+        text: str = "",
+        images: list[ChatImage] = [],
+        role: ChatRole = "system",
+        inference_id: str | None = None,
     ) -> ChatContext:
-        self.messages.append(ChatMessage.create(text=text, images=images, role=role))
+        self.messages.append(
+            ChatMessage.create(
+                text=text, images=images, role=role, inference_id=inference_id
+            )
+        )
         return self
 
     def copy(self) -> ChatContext:
