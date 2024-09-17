@@ -101,6 +101,7 @@ class LLM(
         parallel_tool_calls: bool | None = None,
         tool_choice: Union[ToolChoice, Literal["auto", "required", "none"]]
         | None = None,
+        inference_id: str | None = None,
     ) -> "LLMStream": ...
 
     @property

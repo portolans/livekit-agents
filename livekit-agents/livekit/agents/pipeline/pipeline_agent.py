@@ -29,7 +29,7 @@ from .plotter import AssistantPlotter
 from .speech_handle import SpeechHandle
 
 BeforeLLMCallback = Callable[
-    ["VoicePipelineAgent", ChatContext],
+    ["VoicePipelineAgent", ChatContext, Optional[str]],
     Union[
         Optional[LLMStream],
         Awaitable[Optional[LLMStream]],
@@ -102,11 +102,12 @@ class AgentCallContext:
 
 
 def _default_before_llm_cb(
-    agent: VoicePipelineAgent, chat_ctx: ChatContext
+    agent: VoicePipelineAgent, chat_ctx: ChatContext, inference_id: Optional[str]
 ) -> LLMStream:
     return agent.llm.chat(
         chat_ctx=chat_ctx,
         fnc_ctx=agent.fnc_ctx,
+        inference_id=inference_id,
     )
 
 
@@ -436,6 +437,7 @@ class VoicePipelineAgent(utils.EventEmitter[EventTypes]):
         *,
         allow_interruptions: bool = True,
         add_to_chat_ctx: bool = True,
+        inference_id: str | None = None,
     ) -> SpeechHandle:
         """
         Play a speech source through the voice assistant.
@@ -471,7 +473,9 @@ class VoicePipelineAgent(utils.EventEmitter[EventTypes]):
                     fnc_source = source
 
         new_handle = SpeechHandle.create_assistant_speech(
-            allow_interruptions=allow_interruptions, add_to_chat_ctx=add_to_chat_ctx
+            allow_interruptions=allow_interruptions,
+            add_to_chat_ctx=add_to_chat_ctx,
+            inference_id=inference_id,
         )
         synthesis_handle = self._synthesize_agent_speech(new_handle.id, source)
         new_handle.initialize(source=source, synthesis_handle=synthesis_handle)
@@ -743,6 +747,7 @@ class VoicePipelineAgent(utils.EventEmitter[EventTypes]):
                     ChatMessage.create(
                         text=playing_speech.synthesis_handle.tts_forwarder.played_text,
                         role="assistant",
+                        inference_id=playing_speech.id,
                     )
                 )
 
@@ -757,7 +762,7 @@ class VoicePipelineAgent(utils.EventEmitter[EventTypes]):
 
         tk = SpeechDataContextVar.set(SpeechData(sequence_id=handle.id))
         try:
-            llm_stream = self._opts.before_llm_cb(self, copied_ctx)
+            llm_stream = self._opts.before_llm_cb(self, copied_ctx, handle.id)
             if asyncio.iscoroutine(llm_stream):
                 llm_stream = await llm_stream
 
@@ -774,7 +779,7 @@ class VoicePipelineAgent(utils.EventEmitter[EventTypes]):
 
             # fallback to default impl if no custom/user stream is returned
             if not isinstance(llm_stream, LLMStream):
-                llm_stream = _default_before_llm_cb(self, chat_ctx=copied_ctx)
+                llm_stream = _default_before_llm_cb(self, chat_ctx=copied_ctx, inference_id=handle.id)
 
             if handle.interrupted:
                 return
@@ -928,7 +933,7 @@ class VoicePipelineAgent(utils.EventEmitter[EventTypes]):
                 if interrupted:
                     collected_text += "..."
 
-                msg = ChatMessage.create(text=collected_text, role="assistant")
+                msg = ChatMessage.create(text=collected_text, role="assistant", inference_id=speech_handle.id)
                 self._chat_ctx.messages.append(msg)
                 message_id_committed = msg.id
                 speech_handle.mark_speech_committed()
