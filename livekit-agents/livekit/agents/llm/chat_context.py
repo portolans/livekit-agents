@@ -51,6 +51,7 @@ class ChatMessage:
     tool_calls: list[function_context.FunctionCallInfo] | None = None
     tool_call_id: str | None = None
     tool_exception: Exception | None = None
+    inference_id: str | None = None
     _metadata: dict[str, Any] = field(default_factory=dict, repr=False, init=False)
 
     @staticmethod
@@ -84,10 +85,14 @@ class ChatMessage:
 
     @staticmethod
     def create(
-        *, text: str = "", images: list[ChatImage] = [], role: ChatRole = "system"
+        *,
+        text: str = "",
+        images: list[ChatImage] = [],
+        role: ChatRole = "system",
+        inference_id: str | None = None,
     ) -> "ChatMessage":
         if len(images) == 0:
-            return ChatMessage(role=role, content=text)
+            return ChatMessage(role=role, content=text, inference_id=inference_id)
         else:
             content: list[ChatContent] = []
             if text:
@@ -96,7 +101,7 @@ class ChatMessage:
             if len(images) > 0:
                 content.extend(images)
 
-            return ChatMessage(role=role, content=content)
+            return ChatMessage(role=role, content=content, inference_id=inference_id)
 
     def copy(self):
         content = self.content
@@ -113,6 +118,7 @@ class ChatMessage:
             content=content,
             tool_calls=tool_calls,
             tool_call_id=self.tool_call_id,
+            inference_id=self.inference_id,
         )
         copied_msg._metadata = self._metadata
         return copied_msg
@@ -124,9 +130,18 @@ class ChatContext:
     _metadata: dict[str, Any] = field(default_factory=dict, repr=False, init=False)
 
     def append(
-        self, *, text: str = "", images: list[ChatImage] = [], role: ChatRole = "system"
+        self,
+        *,
+        text: str = "",
+        images: list[ChatImage] = [],
+        role: ChatRole = "system",
+        inference_id: str | None = None,
     ) -> ChatContext:
-        self.messages.append(ChatMessage.create(text=text, images=images, role=role))
+        self.messages.append(
+            ChatMessage.create(
+                text=text, images=images, role=role, inference_id=inference_id
+            )
+        )
         return self
 
     def copy(self) -> ChatContext:
