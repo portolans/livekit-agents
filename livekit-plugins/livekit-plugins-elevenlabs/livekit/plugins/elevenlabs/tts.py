@@ -94,6 +94,7 @@ class _TTSOptions:
     chunk_length_schedule: list[int]
     enable_ssml_parsing: bool
     inactivity_timeout: int
+    try_trigger_generation: bool
 
 
 class TTS(tts.TTS):
@@ -109,6 +110,7 @@ class TTS(tts.TTS):
         word_tokenizer: Optional[tokenize.WordTokenizer] = None,
         enable_ssml_parsing: bool = False,
         chunk_length_schedule: list[int] = [80, 120, 200, 260],  # range is [50, 500]
+        try_trigger_generation: bool = True,
         http_session: aiohttp.ClientSession | None = None,
         # deprecated
         model_id: TTSModels | str | None = None,
@@ -169,6 +171,7 @@ class TTS(tts.TTS):
             enable_ssml_parsing=enable_ssml_parsing,
             language=language,
             inactivity_timeout=inactivity_timeout,
+            try_trigger_generation=try_trigger_generation,
         )
         self._session = http_session
         self._pool = utils.ConnectionPool[aiohttp.ClientWebSocketResponse](
@@ -401,7 +404,81 @@ class SynthesizeStream(tts.SynthesizeStream):
             segment_id = utils.shortuuid()
             expected_text = ""  # accumulate all tokens sent
 
+<<<<<<< HEAD
             decoder = utils.codecs.AudioStreamDecoder(
+=======
+                ws_conn = await self._session.ws_connect(
+                    _stream_url(self._opts),
+                    headers={AUTHORIZATION_HEADER: self._opts.api_key},
+                )
+                break
+            except Exception as e:
+                logger.warning(
+                    f"failed to connect to 11labs, retrying in {retry_delay}s",
+                    exc_info=e,
+                )
+
+        if ws_conn is None:
+            raise Exception(f"failed to connect to 11labs after {max_retry} retries")
+
+        request_id = utils.shortuuid()
+        segment_id = utils.shortuuid()
+
+        # 11labs protocol expects the first message to be an "init msg"
+        init_pkt = dict(
+            text=" ",
+            try_trigger_generation=self._opts.try_trigger_generation,
+            voice_settings=_strip_nones(dataclasses.asdict(self._opts.voice.settings))
+            if self._opts.voice.settings
+            else None,
+            generation_config=dict(
+                chunk_length_schedule=self._opts.chunk_length_schedule
+            ),
+        )
+        await ws_conn.send_str(json.dumps(init_pkt))
+        eos_sent = False
+
+        async def send_task():
+            nonlocal eos_sent
+
+            xml_content = []
+            async for data in word_stream:
+                text = data.token
+
+                # send the xml phoneme in one go
+                if (
+                    self._opts.enable_ssml_parsing
+                    and data.token.startswith("<phoneme")
+                    or xml_content
+                ):
+                    xml_content.append(text)
+                    if data.token.find("</phoneme>") > -1:
+                        text = self._opts.word_tokenizer.format_words(xml_content)
+                        xml_content = []
+                    else:
+                        continue
+
+                # try_trigger_generation=True is a bad practice, we expose
+                # chunk_length_schedule instead
+                data_pkt = dict(
+                    text=f"{text} ",  # must always end with a space
+                    try_trigger_generation=False,
+                )
+                self._mark_started()
+                await ws_conn.send_str(json.dumps(data_pkt))
+
+            if xml_content:
+                logger.warning("11labs stream ended with incomplete xml content")
+
+            # no more token, mark eos
+            eos_pkt = dict(text="")
+            await ws_conn.send_str(json.dumps(eos_pkt))
+            eos_sent = True
+
+        async def recv_task():
+            nonlocal eos_sent
+            audio_bstream = utils.audio.AudioByteStream(
+>>>>>>> 107c0ba0 (eleven: support changing try_trigger_generation)
                 sample_rate=self._opts.sample_rate,
                 num_channels=1,
             )
