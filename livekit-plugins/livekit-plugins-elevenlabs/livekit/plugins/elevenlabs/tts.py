@@ -87,6 +87,7 @@ class _TTSOptions:
     word_tokenizer: tokenize.WordTokenizer
     chunk_length_schedule: list[int]
     enable_ssml_parsing: bool
+    try_trigger_generation: bool
 
 
 class TTS(tts.TTS):
@@ -102,8 +103,9 @@ class TTS(tts.TTS):
         word_tokenizer: tokenize.WordTokenizer = tokenize.basic.WordTokenizer(
             ignore_punctuation=False  # punctuation can help for intonation
         ),
-        enable_ssml_parsing: bool = False,
         chunk_length_schedule: list[int] = [80, 120, 200, 260],  # range is [50, 500]
+        enable_ssml_parsing: bool = False,
+        try_trigger_generation: bool = True,
         http_session: aiohttp.ClientSession | None = None,
         # deprecated
         model_id: TTSModels | str | None = None,
@@ -153,6 +155,7 @@ class TTS(tts.TTS):
             word_tokenizer=word_tokenizer,
             chunk_length_schedule=chunk_length_schedule,
             enable_ssml_parsing=enable_ssml_parsing,
+            try_trigger_generation=try_trigger_generation,
         )
         self._session = http_session
 
@@ -343,7 +346,7 @@ class SynthesizeStream(tts.SynthesizeStream):
         # 11labs protocol expects the first message to be an "init msg"
         init_pkt = dict(
             text=" ",
-            try_trigger_generation=True,
+            try_trigger_generation=self._opts.try_trigger_generation,
             voice_settings=_strip_nones(dataclasses.asdict(self._opts.voice.settings))
             if self._opts.voice.settings
             else None,
