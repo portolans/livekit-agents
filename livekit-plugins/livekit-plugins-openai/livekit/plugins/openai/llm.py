@@ -641,6 +641,7 @@ class LLM(llm.LLM):
         parallel_tool_calls: bool | None = None,
         tool_choice: Union[ToolChoice, Literal["auto", "required", "none"]]
         | None = None,
+        inference_id: str | None = None,
     ) -> "LLMStream":
         if parallel_tool_calls is None:
             parallel_tool_calls = self._opts.parallel_tool_calls
