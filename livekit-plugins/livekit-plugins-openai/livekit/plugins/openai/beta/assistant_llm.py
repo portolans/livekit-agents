@@ -175,6 +175,7 @@ class AssistantLLM(llm.LLM):
         parallel_tool_calls: bool | None = None,
         tool_choice: Union[ToolChoice, Literal["auto", "required", "none"]]
         | None = None,
+        inference_id: str | None = None,
     ):
         if n is not None:
             logger.warning("OpenAI Assistants does not support the 'n' parameter")
