@@ -1,5 +1,19 @@
 # livekit-plugins-elevenlabs
 
+## 0.7.5
+
+### Patch Changes
+
+- avoid returning tiny frames from TTS - [#747](https://github.com/livekit/agents/pull/747) ([@theomonnom](https://github.com/theomonnom))
+
+- 11labs: send phoneme in one entire xml chunk - [#766](https://github.com/livekit/agents/pull/766) ([@theomonnom](https://github.com/theomonnom))
+
+## 0.7.4
+
+### Patch Changes
+
+- elevenlabs: expose enable_ssml_parsing - [#723](https://github.com/livekit/agents/pull/723) ([@theomonnom](https://github.com/theomonnom))
+
 ## 0.7.3
 
 ### Patch Changes
