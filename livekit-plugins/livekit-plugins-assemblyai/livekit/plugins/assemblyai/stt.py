@@ -60,7 +60,7 @@ class STT(stt.STT):
         api_key: Optional[str] = None,
         sample_rate: Optional[int] = 16000,
         word_boost: Optional[List[str]] = None,
-        encoding: Optional[str] = "pcm_s16le",
+        encoding: Optional[Literal['pcm_s16le', 'pcm_mulaw']] = "pcm_s16le",
         disable_partial_transcripts: bool = False,
         enable_extra_session_information: bool = False,
         end_utterance_silence_threshold: int = 1000,
@@ -98,8 +98,9 @@ class STT(stt.STT):
 
     async def recognize(
         self,
-        *,
         buffer: AudioBuffer,
+        *,
+        language: Optional[str] = None,
     ) -> stt.SpeechEvent:
         raise NotImplementedError("Not implemented")
 
@@ -151,22 +152,15 @@ class SpeechStream(stt.SpeechStream):
 
         self._queue.put_nowait(frame)
 
-    async def aclose(self, *, wait: bool = True) -> None:
+    async def aclose(self) -> None:
         self._closed = True
         self._queue.put_nowait(SpeechStream._CLOSE_MSG)
-
-        if not wait:
-            self._main_task.cancel()
-
-        with suppress(asyncio.CancelledError):
-            await self._main_task
-
         await self._session.close()
 
+    @utils.log_exceptions(logger=logger)
     async def _main_task(self) -> None:
         await self._run(self._max_retry)
 
-    @utils.log_exceptions(logger=logger)
     async def _run(self, max_retry: int) -> None:
         """
         Run a single websocket connection to AssemblyAI and make sure to reconnect
@@ -183,7 +177,7 @@ class SpeechStream(stt.SpeechStream):
                         "enable_extra_session_information": self._opts.enable_extra_session_information,
                     }
                     if self._opts.word_boost:
-                        live_config["word_boost"] = self._opts.word_boost
+                        live_config["word_boost"] = json.dumps(self._opts.word_boost) # type: ignore
 
                     headers = {
                         "Authorization": self._api_key,
