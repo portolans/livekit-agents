@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import asyncio
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -20,42 +18,26 @@ class VADEventType(str, Enum):
 
 @dataclass
 class VADEvent:
-    """
-    Represents an event detected by the Voice Activity Detector (VAD).
-    """
-
     type: VADEventType
-    """Type of the VAD event (e.g., start of speech, end of speech, inference done)."""
-
+    """type of the event"""
     samples_index: int
-    """Index of the audio sample where the event occurred, relative to the inference sample rate."""
-
-    timestamp: float
-    """Timestamp (in seconds) when the event was fired."""
-
+    """index of the samples when the event was fired"""
     speech_duration: float
-    """Duration of the detected speech segment in seconds."""
-
+    """duration of the speech in seconds"""
     silence_duration: float
-    """Duration of the silence segment preceding or following the speech, in seconds."""
-
+    """duration of the silence in seconds"""
     frames: List[rtc.AudioFrame] = field(default_factory=list)
-    """
-    List of audio frames associated with the speech.
+    """list of audio frames of the speech
 
-    - For `start_of_speech` events, this contains the audio chunks that triggered the detection.
-    - For `inference_done` events, this contains the audio chunks that were processed.
-    - For `end_of_speech` events, this contains the complete user speech.
+    start_of_speech: contains the complete audio chunks that triggered the detection)
+    end_of_speech: contains the complete user speech
     """
-
     probability: float = 0.0
-    """Probability that speech is present (only for `INFERENCE_DONE` events)."""
-
+    """smoothed probability of the speech (only for INFERENCE_DONE event)"""
     inference_duration: float = 0.0
-    """Time taken to perform the inference, in seconds (only for `INFERENCE_DONE` events)."""
-
+    """duration of the inference in seconds (only for INFERENCE_DONE event)"""
     speaking: bool = False
-    """Indicates whether speech was detected in the frames."""
+    """whether speech was detected in the frames"""
 
 
 @dataclass
