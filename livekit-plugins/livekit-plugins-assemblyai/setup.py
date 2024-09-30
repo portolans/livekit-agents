@@ -25,7 +25,7 @@ with open(os.path.join(here, "livekit", "plugins", "assemblyai", "version.py"), 
 setuptools.setup(
     name="livekit-plugins-assemblyai",
     version=about["__version__"],
-    description="Agent Framework plugin for AssemblyAI",
+    description="Agent Framework plugin for services using AssemblyAI's API.",
     long_description=(here / "README.md").read_text(encoding="utf-8"),
     long_description_content_type="text/markdown",
     url="https://github.com/livekit/agents",
@@ -45,10 +45,8 @@ setuptools.setup(
     license="Apache-2.0",
     packages=setuptools.find_namespace_packages(include=["livekit.*"]),
     python_requires=">=3.9.0",
-    install_requires=[
-        "livekit-agents~=0.7",
-    ],
-    package_data={},
+    install_requires=["livekit-agents>=0.8.0", "numpy~=1.21"],
+    package_data={"livekit.plugins.assemblyai": ["py.typed"]},
     project_urls={
         "Documentation": "https://docs.livekit.io",
         "Website": "https://livekit.io/",
