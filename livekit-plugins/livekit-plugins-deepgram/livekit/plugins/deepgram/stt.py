@@ -379,7 +379,7 @@ class SpeechStream(stt.SpeechStream):
                         "deepgram: final transcript received",
                         extra={
                             "request_id": request_id,
-                            "text": alts[0].text,
+                            "text": alts[0].text if len(alts) > 0 else None,
                         },
                     )
                     final_event = stt.SpeechEvent(
