@@ -599,11 +599,26 @@ class SpeechStream(stt.SpeechStream):
                     self._event_ch.send_nowait(start_event)
 
                 if is_final_transcript:
+                    # We are confident these keys exist because they are checked in live_transcription_to_speech_data
+                    words = [
+                        {'text': word['word'], 'confidence': word['confidence']}
+                        for word in (data["channel"]["alternatives"][0]["words"] or [])
+                    ]
+                    word_confidences = [word['confidence'] for word in words]
+                    min_confidence = min(word_confidences)
+                    max_confidence = max(word_confidences)
+                    mean_confidence = sum(word_confidences) / len(word_confidences)
+
                     logger.info(
                         "deepgram: final transcript received",
                         extra={
                             "request_id": request_id,
-                            "text": alts[0].text if len(alts) > 0 else None,
+                            "text": alts[0].text,
+                            "confidence": alts[0].confidence,
+                            "min_confidence": min_confidence,
+                            "max_confidence": max_confidence,
+                            "mean_confidence": mean_confidence,
+                            "words": words,
                         },
                     )
                     final_event = stt.SpeechEvent(
