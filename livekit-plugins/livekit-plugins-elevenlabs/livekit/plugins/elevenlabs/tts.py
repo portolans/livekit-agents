@@ -98,7 +98,7 @@ class _TTSOptions:
     chunk_length_schedule: list[int]
     enable_ssml_parsing: bool
     try_trigger_generation: bool
-
+    flush_after_first_sentence: bool
 
 class TTS(tts.TTS):
     def __init__(
@@ -116,6 +116,7 @@ class TTS(tts.TTS):
         chunk_length_schedule: list[int] = [80, 120, 200, 260],  # range is [50, 500]
         enable_ssml_parsing: bool = False,
         try_trigger_generation: bool = True,
+        flush_after_first_sentence: bool = False,
         http_session: aiohttp.ClientSession | None = None,
         # deprecated
         model_id: TTSModels | str | None = None,
@@ -171,6 +172,7 @@ class TTS(tts.TTS):
             enable_ssml_parsing=enable_ssml_parsing,
             language=language,
             try_trigger_generation=try_trigger_generation,
+            flush_after_first_sentence=flush_after_first_sentence,
         )
         self._session = http_session
 
@@ -410,6 +412,7 @@ class SynthesizeStream(tts.SynthesizeStream):
 
         async def send_task():
             nonlocal eos_sent
+            has_flushed = False # whether we have ever told Eleven Labs to flush
 
             xml_content = []
             async for data in word_stream:
@@ -430,10 +433,17 @@ class SynthesizeStream(tts.SynthesizeStream):
 
                 # try_trigger_generation=True is a bad practice, we expose
                 # chunk_length_schedule instead
+                # <Portola> We also choose to flush on the first sentence having been completed, if the option is enabled.
                 data_pkt = dict(
                     text=f"{text} ",  # must always end with a space
                     try_trigger_generation=False,
+                    flush=(
+                        self._opts.flush_after_first_sentence
+                        and not has_flushed
+                        and text[-1] in ('!', '?', '.') # rough heuristic but matches our domain pretty well
+                    )
                 )
+                has_flushed |= data_pkt["flush"]
                 await ws_conn.send_str(json.dumps(data_pkt))
 
             if xml_content:
