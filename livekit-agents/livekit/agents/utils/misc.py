@@ -10,3 +10,11 @@ def time_ms() -> int:
 
 def shortuuid() -> str:
     return str(uuid.uuid4().hex)[:12]
+
+
+def message_id() -> str:
+    """<Portola> A globally unique, prefixed identifier for every message in the chat history.
+    
+    We do not use shortuuid() above because there is too high risk of collision.
+    """
+    return f"CM_{str(uuid.uuid4().hex)}"
