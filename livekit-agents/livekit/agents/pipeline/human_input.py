@@ -87,7 +87,10 @@ class HumanInput(utils.EventEmitter[EventTypes]):
                     self._recognize_atask.cancel()
 
                 self._recognize_atask = asyncio.create_task(
-                    self._recognize_task(rtc.AudioStream(track, sample_rate=16000))
+                    # <Portola> Historically sample rate has been the default (48KHz) but was changed in
+                    # https://github.com/livekit/agents/pull/920 to 16KHz, which we worry will increase word
+                    # error rate. So we reinstate 48KHz here.
+                    self._recognize_task(rtc.AudioStream(track, sample_rate=48000))
                 )
                 break
 
