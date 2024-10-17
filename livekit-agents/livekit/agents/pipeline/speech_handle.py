@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 from typing import AsyncIterable
 
 from .. import utils
@@ -34,6 +35,7 @@ class SpeechHandle:
         # source and synthesis_handle are None until the speech is initialized
         self._source: str | LLMStream | AsyncIterable[str] | None = None
         self._synthesis_handle: SynthesisHandle | None = None
+        self._created_at = datetime.now()
 
     @staticmethod
     def create_assistant_reply(
@@ -56,7 +58,7 @@ class SpeechHandle:
             SpeechHandle: The created instance.
         """
         return SpeechHandle(
-            id=utils.shortuuid(),
+            id=utils.message_id(),
             allow_interruptions=allow_interruptions,
             add_to_chat_ctx=add_to_chat_ctx,
             is_reply=True,
@@ -85,7 +87,7 @@ class SpeechHandle:
             SpeechHandle: The created instance.
         """
         return SpeechHandle(
-            id=inference_id or utils.shortuuid(),
+            id=inference_id or utils.message_id(),
             allow_interruptions=allow_interruptions,
             add_to_chat_ctx=add_to_chat_ctx,
             is_reply=False,
@@ -173,6 +175,10 @@ class SpeechHandle:
         return self._init_fut.cancelled() or (
             self._synthesis_handle is not None and self._synthesis_handle.interrupted
         )
+
+    @property
+    def created_at(self) -> datetime:
+        return self._created_at
 
     def interrupt(self) -> None:
         if not self.allow_interruptions:
