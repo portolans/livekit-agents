@@ -715,7 +715,7 @@ class VoicePipelineAgent(utils.EventEmitter[EventTypes]):
                     ChatMessage.create(
                         text=playing_speech.synthesis_handle.tts_forwarder.played_text,
                         role="assistant",
-                        inference_id=playing_speech.id,
+                        id=playing_speech.id,
                     )
                 )
 
@@ -723,7 +723,7 @@ class VoicePipelineAgent(utils.EventEmitter[EventTypes]):
         # adding an empty user message gives the LLM context so it could continue from where
         # it had been interrupted.
         copied_ctx.messages.append(
-            ChatMessage.create(text=handle.user_question, role="user")
+            ChatMessage.create(text=handle.user_question, role="user", id=utils.message_id(), timestamp=handle.created_at)
         )
 
         tk = SpeechDataContextVar.set(SpeechData(sequence_id=handle.id))
@@ -790,7 +790,7 @@ class VoicePipelineAgent(utils.EventEmitter[EventTypes]):
             ):
                 return
 
-            user_msg = ChatMessage.create(text=user_question, role="user")
+            user_msg = ChatMessage.create(text=user_question, role="user", id=utils.message_id(), timestamp=speech_handle.created_at)
             self._chat_ctx.messages.append(user_msg)
             self.emit("user_speech_committed", user_msg)
 
@@ -840,7 +840,7 @@ class VoicePipelineAgent(utils.EventEmitter[EventTypes]):
                 collected_text += "..."
 
             msg = ChatMessage.create(
-                text=collected_text, role="assistant", inference_id=speech_handle.id
+                text=collected_text, role="assistant", id=speech_handle.id
             )
             self._chat_ctx.messages.append(msg)
             message_id_committed = msg.id
