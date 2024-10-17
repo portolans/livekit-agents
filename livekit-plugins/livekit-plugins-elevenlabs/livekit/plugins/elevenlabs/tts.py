@@ -21,7 +21,7 @@ import json
 import os
 import weakref
 from dataclasses import dataclass
-from typing import Any, List, Optional
+from typing import Any, List, Literal, Tuple, Union
 
 import aiohttp
 from livekit.agents import (
@@ -95,7 +95,7 @@ class _TTSOptions:
     enable_ssml_parsing: bool
     inactivity_timeout: int
     try_trigger_generation: bool
-    flush_after_first_sentence: bool
+    flush_interval: Union[Literal['first-sentence', 'all-sentences', False], Tuple[int, ...]]
 
 class TTS(tts.TTS):
     def __init__(
@@ -111,7 +111,7 @@ class TTS(tts.TTS):
         enable_ssml_parsing: bool = False,
         chunk_length_schedule: list[int] = [80, 120, 200, 260],  # range is [50, 500]
         try_trigger_generation: bool = True,
-        flush_after_first_sentence: bool = False,
+        flush_interval: Union[Literal['first-sentence', 'all-sentences', False], Tuple[int, ...]] = False,
         http_session: aiohttp.ClientSession | None = None,
         # deprecated
         model_id: TTSModels | str | None = None,
@@ -173,7 +173,7 @@ class TTS(tts.TTS):
             language=language,
             inactivity_timeout=inactivity_timeout,
             try_trigger_generation=try_trigger_generation,
-            flush_after_first_sentence=flush_after_first_sentence,
+            flush_interval=flush_interval,
         )
         self._session = http_session
         self._pool = utils.ConnectionPool[aiohttp.ClientWebSocketResponse](
@@ -406,89 +406,7 @@ class SynthesizeStream(tts.SynthesizeStream):
             segment_id = utils.shortuuid()
             expected_text = ""  # accumulate all tokens sent
 
-<<<<<<< HEAD
             decoder = utils.codecs.AudioStreamDecoder(
-=======
-                ws_conn = await self._session.ws_connect(
-                    _stream_url(self._opts),
-                    headers={AUTHORIZATION_HEADER: self._opts.api_key},
-                )
-                break
-            except Exception as e:
-                logger.warning(
-                    f"failed to connect to 11labs, retrying in {retry_delay}s",
-                    exc_info=e,
-                )
-
-        if ws_conn is None:
-            raise Exception(f"failed to connect to 11labs after {max_retry} retries")
-
-        request_id = utils.shortuuid()
-        segment_id = utils.shortuuid()
-
-        # 11labs protocol expects the first message to be an "init msg"
-        init_pkt = dict(
-            text=" ",
-            try_trigger_generation=self._opts.try_trigger_generation,
-            voice_settings=_strip_nones(dataclasses.asdict(self._opts.voice.settings))
-            if self._opts.voice.settings
-            else None,
-            generation_config=dict(
-                chunk_length_schedule=self._opts.chunk_length_schedule
-            ),
-        )
-        await ws_conn.send_str(json.dumps(init_pkt))
-        eos_sent = False
-
-        async def send_task():
-            nonlocal eos_sent
-            has_flushed = False # whether we have ever told Eleven Labs to flush
-
-            xml_content = []
-            async for data in word_stream:
-                text = data.token
-
-                # send the xml phoneme in one go
-                if (
-                    self._opts.enable_ssml_parsing
-                    and data.token.startswith("<phoneme")
-                    or xml_content
-                ):
-                    xml_content.append(text)
-                    if data.token.find("</phoneme>") > -1:
-                        text = self._opts.word_tokenizer.format_words(xml_content)
-                        xml_content = []
-                    else:
-                        continue
-
-                # try_trigger_generation=True is a bad practice, we expose
-                # chunk_length_schedule instead
-                # <Portola> We also choose to flush on the first sentence having been completed, if the option is enabled.
-                data_pkt = dict(
-                    text=f"{text} ",  # must always end with a space
-                    try_trigger_generation=False,
-                    flush=(
-                        self._opts.flush_after_first_sentence
-                        and not has_flushed
-                        and text[-1] in ('!', '?', '.') # rough heuristic but matches our domain pretty well
-                    )
-                )
-                self._mark_started()
-                has_flushed |= data_pkt["flush"]
-                await ws_conn.send_str(json.dumps(data_pkt))
-
-            if xml_content:
-                logger.warning("11labs stream ended with incomplete xml content")
-
-            # no more token, mark eos
-            eos_pkt = dict(text="")
-            await ws_conn.send_str(json.dumps(eos_pkt))
-            eos_sent = True
-
-        async def recv_task():
-            nonlocal eos_sent
-            audio_bstream = utils.audio.AudioByteStream(
->>>>>>> 107c0ba0 (eleven: support changing try_trigger_generation)
                 sample_rate=self._opts.sample_rate,
                 num_channels=1,
             )
@@ -511,6 +429,8 @@ class SynthesizeStream(tts.SynthesizeStream):
             async def send_task():
                 nonlocal expected_text
                 xml_content = []
+                num_flushes = 0 # the number of times we have told Eleven Labs to flush
+                num_sentences = 0
                 async for data in word_stream:
                     text = data.token
                     expected_text += text
@@ -528,7 +448,29 @@ class SynthesizeStream(tts.SynthesizeStream):
                             continue
 
                     data_pkt = dict(text=f"{text} ")  # must always end with a space
+
+                    # try_trigger_generation=True is a bad practice, we expose
+                    # chunk_length_schedule instead
+                    #
+                    # <Portola> We chose to go much further and expose a configurable `flush_interval` param
+                    # that gives us more control to configure when flushing occurs. There are a few options:
+                    # - `all-sentences`: always flush whenever a sentence boundary is detected
+                    # - `first-sentence`: flush after the first sentence is sent
+                    # - tuple of ints: flush periodically, where the tuple is a list of sentence counts at which we flush
+                    # - False: flush never (the default behavior)
+                    is_sentence_boundary = text[-1] in ('!', '?', '.') # rough heuristic but matches our domain pretty well
+                    num_sentences += int(is_sentence_boundary)
+                    data_pkt['flush'] = (
+                        is_sentence_boundary
+                        and (
+                            self._opts.flush_interval == 'all-sentences'
+                            or (self._opts.flush_interval == 'first-sentence' and num_flushes == 0)
+                            or (isinstance(self._opts.flush_interval, tuple) and num_sentences in self._opts.flush_interval)
+                        )
+                    )
+
                     self._mark_started()
+                    num_flushes += int(data_pkt["flush"])
                     await ws_conn.send_str(json.dumps(data_pkt))
                 if xml_content:
                     logger.warning("11labs stream ended with incomplete xml content")
