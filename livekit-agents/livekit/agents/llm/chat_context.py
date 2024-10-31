@@ -131,8 +131,18 @@ class ChatMessage:
 
 @dataclass
 class ChatContext:
+    _seen =  {}
     messages: list[ChatMessage] = field(default_factory=list)
     _metadata: dict[str, Any] = field(default_factory=dict, repr=False, init=False)
+
+    def append_chat_message(self, message: ChatMessage) -> ChatContext:
+        if message.id in self._seen:
+            self._seen[message.id].content += f" {message.content}"
+        else:
+            self.messages.append(message)
+            self._seen[message.id] = message
+
+        return self
 
     def append(
         self,
@@ -143,11 +153,12 @@ class ChatContext:
         id: str | None = None,
         timestamp: datetime | None = None,
     ) -> ChatContext:
-        self.messages.append(
-            ChatMessage.create(
-                text=text, images=images, role=role, id=id, timestamp=timestamp
-            )
-        )
+        if id in self._seen:
+            self._seen[id].content += f" {text}"
+        else:
+            msg = ChatMessage.create(text=text, images=images, role=role, id=id, timestamp=timestamp)
+            self.messages.append(msg)
+            self._seen[id] = msg
         return self
 
     def copy(self) -> ChatContext:
