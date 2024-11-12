@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextvars
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import (
     Any,
     AsyncGenerator,
@@ -427,6 +427,9 @@ class VoicePipelineAgent(utils.EventEmitter[EventTypes]):
             callback: the callback to call when the event is emitted
         """
         return super().on(event, callback)
+
+    def set_allow_interruptions(self, allow_interruptions: bool) -> None:
+        self._opts = replace(self._opts, allow_interruptions=allow_interruptions)
 
     async def say(
         self,
