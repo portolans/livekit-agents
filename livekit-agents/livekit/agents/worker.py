@@ -743,7 +743,8 @@ class Worker(utils.EventEmitter[EventTypes]):
     async def _update_job_status(self, proc: ipc.job_executor.JobExecutor) -> None:
         job_info = proc.running_job
         if not job_info:
-            logger.error("job_info not found for process")
+            # <Portola> Removing this log line per in-flight PR: https://github.com/livekit/agents/pull/1046/files
+            # logger.error("job_info not found for process")
             return
         status: agent.JobStatus = agent.JobStatus.JS_RUNNING
         if proc.run_status == ipc.job_executor.RunStatus.FINISHED_FAILED:
