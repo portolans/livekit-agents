@@ -175,7 +175,6 @@ class ChatMessage:
             content=content,
             tool_calls=tool_calls,
             tool_call_id=self.tool_call_id,
-            id=self.id,
             timestamp=self.timestamp,
         )
         copied_msg._metadata = self._metadata
