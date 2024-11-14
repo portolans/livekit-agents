@@ -33,7 +33,7 @@ class WizperSTT(stt.STT):
         super().__init__(
             capabilities=STTCapabilities(streaming=False, interim_results=True)
         )
-        self._api_key = api_key or os.getenv("FAL_API_KEY")
+        self._api_key = api_key or os.getenv("FAL_KEY")
         self._opts = _STTOptions(
             language=language, task=task, chunk_level=chunk_level, version=version
         )
@@ -46,10 +46,10 @@ class WizperSTT(stt.STT):
     def _sanitize_options(
         self,
         *,
-        language: str = None,
-        task: str = None,
-        chunk_level: str = None,
-        version: str = None,
+        language: str | None = None,
+        task: str | None = None,
+        chunk_level: str | None = None,
+        version: str | None = None,
     ) -> _STTOptions:
         config = dataclasses.replace(self._opts)
         config.language = language or config.language
@@ -71,19 +71,14 @@ class WizperSTT(stt.STT):
 
         return io_buffer.getvalue()
 
-    # def _create_data_uri(self, wav_bytes: bytes) -> str:
-    #     """Create a properly formatted data URI from WAV bytes."""
-    #     base64_audio = base64.b64encode(wav_bytes).decode('utf-8')
-    #     return f"data:audio/wav;base64,{base64_audio}"
-
-    async def recognize(
+    async def _recognize_impl(
         self,
         buffer: AudioBuffer,
         *,
-        language: str = None,
-        task: str = None,
-        chunk_level: str = None,
-        version: str = None,
+        language: str | None = None,
+        task: str | None = None,
+        chunk_level: str | None = None,
+        version: str | None = None,
     ) -> stt.SpeechEvent:
         logger.debug("Starting recognition process.")
         try:
@@ -95,32 +90,20 @@ class WizperSTT(stt.STT):
             )
 
             wav_bytes = self._convert_audio_to_wav(buffer)
-            url = await fal_client.upload_async(wav_bytes, "audio/wav", "audio.wav")
-            logger.debug(f"Uploaded audio to FAL API with URL: {url}")
-            handler = await fal_client.submit_async(
+            result = await fal_client.run_async(
                 "fal-ai/wizper",
                 arguments={
-                    "audio_url": url,
+                    "audio_url": fal_client.encode(wav_bytes, "audio/x-wav"),
                     "task": config.task,
                     "language": config.language,
                     "chunk_level": config.chunk_level,
                     "version": config.version,
                 },
             )
-            logger.debug(f"Submitted request to FAL API with ID: {handler.request_id}")
-
-            try:
-                result = await fal_client.result_async(
-                    "fal-ai/wizper", handler.request_id
-                )
-                text = result.get("text", "")
-                return self._transcription_to_speech_event(text=text)
-            except fal_client.client.FalClientError as e:
-                logger.error(f"FAL AI API error: {e}")
-                return self._transcription_to_speech_event(text="")
-
-        except Exception as ex:
-            logger.error(f"Error during recognition: {ex}", exc_info=True)
+            text = result.get("text", "")
+            return self._transcription_to_speech_event(text=text)
+        except Exception:
+            logger.exception("Error during recognition")
             return self._transcription_to_speech_event(text="")
 
     def _transcription_to_speech_event(
