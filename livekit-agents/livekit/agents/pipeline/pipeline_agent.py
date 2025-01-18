@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextvars
+import datetime
 import time
 from dataclasses import dataclass, replace
 from typing import (
@@ -520,6 +521,19 @@ class VoicePipelineAgent(utils.EventEmitter[EventTypes]):
         # interrupt the playing speech
         if self._playing_speech is not None:
             self._playing_speech.cancel()
+
+    def commit_pending_user_speech(self) -> None:
+        """If there is any transcribed but as of yet uncommitted user speech, commit it immediately."""
+        if self._transcribed_text:
+            user_msg = ChatMessage.create(
+                text=self._transcribed_text,
+                role="user",
+                id=utils.message_id(),
+                timestamp=datetime.datetime.now(),
+            )
+            self._chat_ctx.messages.append(user_msg)
+            self.emit("user_speech_committed", user_msg)
+            self._transcribed_text = ""
 
     def _update_state(self, state: AgentState, delay: float = 0.0):
         """Set the current state of the agent"""
