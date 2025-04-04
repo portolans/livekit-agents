@@ -253,6 +253,8 @@ def run_worker(args: proto.CliArgs) -> None:
     try:
 
         def _signal_handler():
+            # <Portola> additional logs to track signal handling
+            logger.warn("worker received signal %s", sig)
             raise KeyboardInterrupt
 
         for sig in (signal.SIGINT, signal.SIGTERM):
@@ -285,7 +287,13 @@ def run_worker(args: proto.CliArgs) -> None:
             if not args.devmode:
                 loop.run_until_complete(worker.drain(timeout=args.drain_timeout))
 
+            # <Portola> additional logs to track draining
+            logger.info("worker draining complete")
+
             loop.run_until_complete(worker.aclose())
+
+            # <Portola> additional logs to track shutdown
+            logger.info("worker closed")
 
             if watch_client:
                 loop.run_until_complete(watch_client.aclose())
@@ -305,3 +313,6 @@ def run_worker(args: proto.CliArgs) -> None:
             loop.run_until_complete(loop.shutdown_default_executor())
         finally:
             loop.close()
+
+    # <Portola> additional logs to track shutdown
+    logger.info("worker clean shutdown complete")

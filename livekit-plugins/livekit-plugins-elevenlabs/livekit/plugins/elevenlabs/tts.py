@@ -21,7 +21,7 @@ import json
 import os
 import weakref
 from dataclasses import dataclass
-from typing import Any, List, Optional
+from typing import Any, List, Literal, Optional, Tuple, Union
 
 import aiohttp
 from livekit.agents import (
@@ -94,7 +94,7 @@ class _TTSOptions:
     chunk_length_schedule: list[int]
     enable_ssml_parsing: bool
     inactivity_timeout: int
-
+    flush_interval: Union[Literal['first-sentence', 'all-sentences', False], Tuple[int, ...]]
 
 class TTS(tts.TTS):
     def __init__(
@@ -109,6 +109,7 @@ class TTS(tts.TTS):
         word_tokenizer: Optional[tokenize.WordTokenizer] = None,
         enable_ssml_parsing: bool = False,
         chunk_length_schedule: list[int] = [80, 120, 200, 260],  # range is [50, 500]
+        flush_interval: Union[Literal['first-sentence', 'all-sentences', False], Tuple[int, ...]] = False,
         http_session: aiohttp.ClientSession | None = None,
         # deprecated
         model_id: TTSModels | str | None = None,
@@ -169,6 +170,7 @@ class TTS(tts.TTS):
             enable_ssml_parsing=enable_ssml_parsing,
             language=language,
             inactivity_timeout=inactivity_timeout,
+            flush_interval=flush_interval,
         )
         self._session = http_session
         self._streams = weakref.WeakSet[SynthesizeStream]()
@@ -407,6 +409,9 @@ class SynthesizeStream(tts.SynthesizeStream):
         @utils.log_exceptions(logger=logger)
         async def send_task():
             nonlocal eos_sent
+            num_flushes = 0 # the number of times we have told Eleven Labs to flush
+            num_sentences = 0
+
             xml_content = []
             async for data in word_stream:
                 text = data.token
@@ -423,8 +428,30 @@ class SynthesizeStream(tts.SynthesizeStream):
                     else:
                         continue
 
-                data_pkt = dict(text=f"{text} ")  # must always end with a space
+                # try_trigger_generation=True is a bad practice, we expose
+                # chunk_length_schedule instead
+                #
+                # <Portola> We chose to go much further and expose a configurable `flush_interval` param
+                # that gives us more control to configure when flushing occurs. There are a few options:
+                # - `all-sentences`: always flush whenever a sentence boundary is detected
+                # - `first-sentence`: flush after the first sentence is sent
+                # - tuple of ints: flush periodically, where the tuple is a list of sentence counts at which we flush
+                # - False: flush never (the default behavior)
+                is_sentence_boundary = text[-1] in ('!', '?', '.') # rough heuristic but matches our domain pretty well
+                num_sentences += int(is_sentence_boundary)
+                data_pkt = dict(
+                    text=f"{text} ",  # must always end with a space
+                    flush=(
+                        is_sentence_boundary
+                        and (
+                            self._opts.flush_interval == 'all-sentences'
+                            or (self._opts.flush_interval == 'first-sentence' and num_flushes == 0)
+                            or (isinstance(self._opts.flush_interval, tuple) and num_sentences in self._opts.flush_interval)
+                        )
+                    )
+                )
                 self._mark_started()
+                num_flushes += int(data_pkt["flush"])
                 await ws_conn.send_str(json.dumps(data_pkt))
             if xml_content:
                 logger.warning("11labs stream ended with incomplete xml content")

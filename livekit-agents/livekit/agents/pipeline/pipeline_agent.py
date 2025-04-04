@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import contextvars
+import datetime
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import (
     Any,
     AsyncGenerator,
@@ -29,7 +30,7 @@ from .plotter import AssistantPlotter
 from .speech_handle import SpeechHandle
 
 BeforeLLMCallback = Callable[
-    ["VoicePipelineAgent", ChatContext],
+    ["VoicePipelineAgent", ChatContext, Optional[str]],
     Union[
         Optional[LLMStream],
         Awaitable[Optional[LLMStream]],
@@ -102,11 +103,12 @@ class AgentCallContext:
 
 
 def _default_before_llm_cb(
-    agent: VoicePipelineAgent, chat_ctx: ChatContext
+    agent: VoicePipelineAgent, chat_ctx: ChatContext, inference_id: Optional[str]
 ) -> LLMStream:
     return agent.llm.chat(
         chat_ctx=chat_ctx,
         fnc_ctx=agent.fnc_ctx,
+        inference_id=inference_id,
     )
 
 
@@ -430,12 +432,16 @@ class VoicePipelineAgent(utils.EventEmitter[EventTypes]):
         """
         return super().on(event, callback)
 
+    def set_allow_interruptions(self, allow_interruptions: bool) -> None:
+        self._opts = replace(self._opts, allow_interruptions=allow_interruptions)
+
     async def say(
         self,
         source: str | LLMStream | AsyncIterable[str],
         *,
         allow_interruptions: bool = True,
         add_to_chat_ctx: bool = True,
+        inference_id: str | None = None,
     ) -> SpeechHandle:
         """
         Play a speech source through the voice assistant.
@@ -471,7 +477,9 @@ class VoicePipelineAgent(utils.EventEmitter[EventTypes]):
                     fnc_source = source
 
         new_handle = SpeechHandle.create_assistant_speech(
-            allow_interruptions=allow_interruptions, add_to_chat_ctx=add_to_chat_ctx
+            allow_interruptions=allow_interruptions,
+            add_to_chat_ctx=add_to_chat_ctx,
+            inference_id=inference_id,
         )
         synthesis_handle = self._synthesize_agent_speech(new_handle.id, source)
         new_handle.initialize(source=source, synthesis_handle=synthesis_handle)
@@ -518,6 +526,19 @@ class VoicePipelineAgent(utils.EventEmitter[EventTypes]):
         # interrupt the playing speech
         if self._playing_speech is not None:
             self._playing_speech.cancel()
+
+    def commit_pending_user_speech(self) -> None:
+        """If there is any transcribed but as of yet uncommitted user speech, commit it immediately."""
+        if self._transcribed_text:
+            user_msg = ChatMessage.create(
+                text=self._transcribed_text,
+                role="user",
+                id=utils.message_id(),
+                timestamp=datetime.datetime.now(),
+            )
+            self._chat_ctx.messages.append(user_msg)
+            self.emit("user_speech_committed", user_msg)
+            self._transcribed_text = ""
 
     def _update_state(self, state: AgentState, delay: float = 0.0):
         """Set the current state of the agent"""
@@ -743,6 +764,7 @@ class VoicePipelineAgent(utils.EventEmitter[EventTypes]):
                     ChatMessage.create(
                         text=playing_speech.synthesis_handle.tts_forwarder.played_text,
                         role="assistant",
+                        id=playing_speech.id,
                     )
                 )
 
@@ -753,28 +775,23 @@ class VoicePipelineAgent(utils.EventEmitter[EventTypes]):
         user_input = handle.user_question
         if not user_input.strip():
             user_input = "<continue>"
-        copied_ctx.messages.append(ChatMessage.create(text=user_input, role="user"))
+        copied_ctx.messages.append(
+            ChatMessage.create(text=user_input, role="user", id=utils.message_id(), timestamp=handle.created_at)
+        )
 
         tk = SpeechDataContextVar.set(SpeechData(sequence_id=handle.id))
         try:
-            llm_stream = self._opts.before_llm_cb(self, copied_ctx)
+            llm_stream = self._opts.before_llm_cb(self, copied_ctx, handle.id)
             if asyncio.iscoroutine(llm_stream):
                 llm_stream = await llm_stream
 
             if llm_stream is False:
-                # user chose not to synthesize an answer, so we do not want to
-                # leave the same question in chat context. otherwise it would be
-                # unintentionally committed when the next set of speech comes in.
-                if len(self._transcribed_text) >= len(handle.user_question):
-                    self._transcribed_text = self._transcribed_text[
-                        len(handle.user_question) :
-                    ]
                 handle.cancel()
                 return
 
             # fallback to default impl if no custom/user stream is returned
             if not isinstance(llm_stream, LLMStream):
-                llm_stream = _default_before_llm_cb(self, chat_ctx=copied_ctx)
+                llm_stream = _default_before_llm_cb(self, chat_ctx=copied_ctx, inference_id=handle.id)
 
             if handle.interrupted:
                 return
@@ -879,7 +896,7 @@ class VoicePipelineAgent(utils.EventEmitter[EventTypes]):
             ):
                 return
 
-            user_msg = ChatMessage.create(text=user_question, role="user")
+            user_msg = ChatMessage.create(text=user_question, role="user", id=utils.message_id(), timestamp=speech_handle.created_at)
             self._chat_ctx.messages.append(user_msg)
             self.emit("user_speech_committed", user_msg)
 
@@ -928,7 +945,7 @@ class VoicePipelineAgent(utils.EventEmitter[EventTypes]):
                 if interrupted:
                     collected_text += "..."
 
-                msg = ChatMessage.create(text=collected_text, role="assistant")
+                msg = ChatMessage.create(text=collected_text, role="assistant", id=speech_handle.id)
                 self._chat_ctx.messages.append(msg)
                 message_id_committed = msg.id
                 speech_handle.mark_speech_committed()

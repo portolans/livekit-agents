@@ -6,7 +6,7 @@ from .audio import AudioBuffer, combine_frames, merge_frames
 from .connection_pool import ConnectionPool
 from .exp_filter import ExpFilter
 from .log import log_exceptions
-from .misc import is_given, shortuuid, time_ms
+from .misc import is_given, message_id, shortuuid, time_ms
 from .moving_average import MovingAverage
 
 EventEmitter = rtc.EventEmitter
@@ -30,4 +30,5 @@ __all__ = [
     "is_given",
     "_compute_changes",
     "ConnectionPool",
+    "message_id",
 ]

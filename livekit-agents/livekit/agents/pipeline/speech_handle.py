@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 from typing import AsyncIterable
 
 from .. import utils
@@ -38,6 +39,7 @@ class SpeechHandle:
         # source and synthesis_handle are None until the speech is initialized
         self._source: str | LLMStream | AsyncIterable[str] | None = None
         self._synthesis_handle: SynthesisHandle | None = None
+        self._created_at = datetime.now()
 
         # nested speech handle and function calls
         self._fnc_nested_depth = fnc_nested_depth
@@ -55,8 +57,21 @@ class SpeechHandle:
         add_to_chat_ctx: bool,
         user_question: str,
     ) -> SpeechHandle:
+        """
+        Creates a SpeechHandle for an assistant message that is in response to something a human has said,
+        represented by `user_question` (though it may not be literally a question). Downstream callers should
+        use this instance's `id` as an inference identifier to connect LLM calls with chat messages.
+
+        Args:
+            allow_interruptions: Whether to allow interruptions during speech playback.
+            add_to_chat_ctx: Whether to add the speech to the chat context.
+            user_question: The user's utterance that led to this speech handle being created.
+
+        Returns:
+            SpeechHandle: The created instance.
+        """
         return SpeechHandle(
-            id=utils.shortuuid(),
+            id=utils.message_id(),
             allow_interruptions=allow_interruptions,
             add_to_chat_ctx=add_to_chat_ctx,
             is_reply=True,
@@ -68,9 +83,24 @@ class SpeechHandle:
         *,
         allow_interruptions: bool,
         add_to_chat_ctx: bool,
+        inference_id: str | None = None,
     ) -> SpeechHandle:
+        """
+        Creates a SpeechHandle for an assistant message that is not in response to something the user says,
+        for example the opening message for an agent or an out-of-band interrupt. Because the LLM inference
+        happened before this instance was created
+
+        Args:
+            allow_interruptions: Whether to allow interruptions during speech playback.
+            add_to_chat_ctx: Whether to add the speech to the chat context.
+            inference_id: Optional ID provided by callers to connect speech chat message to inference requests.
+                          If not provided, a random ID will be generated.
+
+        Returns:
+            SpeechHandle: The created instance.
+        """
         return SpeechHandle(
-            id=utils.shortuuid(),
+            id=inference_id or utils.message_id(),
             allow_interruptions=allow_interruptions,
             add_to_chat_ctx=add_to_chat_ctx,
             is_reply=False,
@@ -178,6 +208,10 @@ class SpeechHandle:
         return self._init_fut.cancelled() or (
             self._synthesis_handle is not None and self._synthesis_handle.interrupted
         )
+
+    @property
+    def created_at(self) -> datetime:
+        return self._created_at
 
     def join(self) -> asyncio.Future:
         return self._done_fut
